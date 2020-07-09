@@ -1020,6 +1020,8 @@ def main():
     parser.add_argument("--bert_model", default="bert-base-cased", type=str,
                         help="Bert pre-trained model selected in the list: bert-base-uncased, "
                              "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.")
+
+    parser.add_argument("--last_epoch", default=None, type=int,)
     parser.add_argument("--output_dir", default="PN", type=str,
                         help="The output directory where the model checkpoints and predictions will be written.")
 
@@ -1045,7 +1047,7 @@ def main():
     parser.add_argument("--train_batch_size", default=4, type=int, help="Total batch size for training.")
     parser.add_argument("--predict_batch_size", default=8, type=int, help="Total batch size for predictions.")
     parser.add_argument("--learning_rate", default=5e-5, type=float, help="The initial learning rate for Adam.")
-    parser.add_argument("--num_train_epochs", default=3.0, type=float,
+    parser.add_argument("--num_train_epochs", default=3, type=int,
                         help="Total number of training epochs to perform.")
     parser.add_argument("--warmup_proportion", default=0.1, type=float,
                         help="Proportion of training to perform linear learning rate warmup for. E.g., 0.1 = 10% "
@@ -1143,10 +1145,18 @@ def main():
         num_train_steps = int(
             len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps * args.num_train_epochs)
 
-    # Prepare model
-    model = BertForQuestionAnsweringSpanMask.from_pretrained(args.bert_model,
-                                                           cache_dir=PYTORCH_PRETRAINED_BERT_CACHE / 'distributed_{}'.format(
-                                                           args.local_rank))
+    # Prepare models
+    if args.last_epoch:
+        model_state_dict = torch.load(
+            os.path.join(args.output_dir, "epoch_" + str(args.last_epoch) + "_pytorch_model.bin")
+        )
+    else:
+        model_state_dict = None
+    model = BertForQuestionAnsweringSpanMask.from_pretrained(
+        args.bert_model,
+        cache_dir=PYTORCH_PRETRAINED_BERT_CACHE / 'distributed_{}'.format(args.local_rank),
+        state_dict=model_state_dict
+    )
 
     if args.fp16:
         model.half()
@@ -1242,7 +1252,7 @@ def main():
             train_sampler = DistributedSampler(train_data)
         train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size)
         step = 0
-        for epoch in trange(int(args.num_train_epochs), desc="Epoch"):
+        for epoch in trange(args.last_epoch + 1, args.num_train_epochs, desc="Epoch"):
             model.train()
 
             train_loss = 0
@@ -1328,7 +1338,7 @@ def main():
 
         all_results = []
 
-        for epoch in trange(int(args.num_train_epochs), desc="Epoch"):
+        for epoch in trange(args.last_epoch, args.num_train_epochs, desc="Epoch"):
             train_loss = TrainLoss[epoch]
             output_model_file = os.path.join(args.output_dir, "epoch_" + str(epoch) + "_pytorch_model.bin")
             model_state_dict = torch.load(output_model_file)
