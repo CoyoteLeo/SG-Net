@@ -1,13 +1,13 @@
 python run_squad2.py \
-  --bert_model bert-large-cased-whole-word-masking \
+  --bert_model bert-larges-cased-whole-word-masking \
   --do_train \
   --do_predict \
-  --train_file data/squad/squad_sample.json \
-  --train_tag_file data/squad/squad_span_sample.json \
-  --train_batch_size 8 \
+  --train_file data/squad/train-v2.0.json \
+  --train_tag_file data/squad/train-v2.0_tag \
+  --train_batch_size 6 \
   --predict_batch_size 20 \
   --num_train_epochs 3.0 \
   --max_seq_length 384 \
   --doc_stride 128 \
   --learning_rate 3e-5 \
-  --output_dir output_path
+  --output_dir result

@@ -1,0 +1,5 @@
+[flake8]
+# E129 visually indented line with same indent as next logical line
+extend-ignore = E129, E203, E231, E302, E501, E741
+max-line-length = 100
+exclude = venv

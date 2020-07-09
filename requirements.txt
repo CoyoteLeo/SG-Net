@@ -1,5 +1,6 @@
 # PyTorch
 torch>=1.0.0
+transformers
 # for using some tools
 allennlp
 # progress bars in model download and training scripts
