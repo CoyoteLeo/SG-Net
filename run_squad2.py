@@ -36,6 +36,7 @@ from pytorch_pretrained_bert.tokenization import BasicTokenizer, BertTokenizer, 
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, TensorDataset
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm, trange
+from transformers.data.metrics.squad_metrics import squad_evaluate
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -910,6 +911,8 @@ def write_predictions(
         with open(output_null_log_odds_file, "w") as writer:
             writer.write(json.dumps(scores_diff_json, indent=4) + "\n")
 
+    return dict(squad_evaluate(all_examples, all_predictions))
+
 
 def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
     """Project the tokenized prediction back to the original text."""
@@ -1070,18 +1073,18 @@ def main():
     # Other parameters
     parser.add_argument(
         "--train_file",
-        default="data/squad/squad_sample.json",
+        default="data/squad/train-v2.0.json",
         type=str,
         help="SQuAD json for training. E.g., train-v1.1.json",
     )
     parser.add_argument(
         "--predict_file",
-        default="data/squad/squad_sample.json",
+        default="data/squad/dev-v2.0.json",
         type=str,
         help="SQuAD json for predictions. E.g., dev-v1.1.json or test-v1.1.json",
     )
-    parser.add_argument("--train_tag_file", default="data/squad/squad_span_sample.json", type=str)
-    parser.add_argument("--predict_tag_file", default="data/squad/squad_span_sample.json", type=str)
+    parser.add_argument("--train_tag_file", default="data/squad/train-v2.0_tag", type=str)
+    parser.add_argument("--predict_tag_file", default="data/squad/dev-v2.0_tag", type=str)
 
     parser.add_argument(
         "--max_seq_length",
@@ -1562,7 +1565,7 @@ def main():
                 args.output_dir, "epoch_" + str(epoch) + "_null_odds.json"
             )
 
-            write_predictions(
+            eval_result = write_predictions(
                 eval_examples,
                 eval_features,
                 all_results,
@@ -1576,6 +1579,8 @@ def main():
                 True,
                 args.null_score_diff_threshold,
             )
+
+            print(json.dumps(eval_result, indent=4))
 
 
 if __name__ == "__main__":
