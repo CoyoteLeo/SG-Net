@@ -25,7 +25,6 @@ import math
 import os
 import pickle
 import random
-import time
 
 import numpy as np
 import spacy
@@ -93,15 +92,15 @@ class SquadExample(object):
 
     def __repr__(self):
         s = ""
-        s += "qas_id: %s" % (self.qas_id)
-        s += ", question_text: %s" % (self.question_text)
+        s += "qas_id: %s" % self.qas_id
+        s += ", question_text: %s" % self.question_text
         s += ", doc_tokens: [%s]" % (" ".join(self.doc_tokens))
         if self.start_position:
-            s += ", start_position: %d" % (self.start_position)
-        if self.start_position:
-            s += ", end_position: %d" % (self.end_position)
-        if self.start_position:
-            s += ", is_impossible: %r" % (self.is_impossible)
+            s += ", start_position: %d" % self.start_position
+        if self.end_position:
+            s += ", end_position: %d" % self.end_position
+        if self.is_impossible:
+            s += ", is_impossible: %r" % self.is_impossible
         return s
 
 
@@ -838,12 +837,9 @@ def write_predictions(
                 final_text = get_final_text(tok_text, orig_text, do_lower_case, verbose_logging)
                 if final_text in seen_predictions:
                     continue
-
-                seen_predictions[final_text] = True
             else:
                 final_text = ""
-                seen_predictions[final_text] = True
-
+            seen_predictions[final_text] = True
             nbest.append(
                 _NbestPrediction(
                     text=final_text, start_logit=pred.start_logit, end_logit=pred.end_logit,
@@ -874,9 +870,8 @@ def write_predictions(
         best_non_null_entry = None
         for entry in nbest:
             total_scores.append(entry.start_logit + entry.end_logit)
-            if not best_non_null_entry:
-                if entry.text:
-                    best_non_null_entry = entry
+            if not best_non_null_entry and entry.text:
+                best_non_null_entry = entry
 
         probs = _compute_softmax(total_scores)
 
@@ -1041,10 +1036,7 @@ def _compute_softmax(scores):
         exp_scores.append(x)
         total_sum += x
 
-    probs = []
-    for score in exp_scores:
-        probs.append(score / total_sum)
-    return probs
+    return [score / total_sum for score in exp_scores]
 
 
 def warmup_linear(x, warmup=0.002):
@@ -1508,13 +1500,9 @@ def main():
             eval_data, sampler=eval_sampler, batch_size=args.predict_batch_size
         )
 
-        with open(os.path.join(args.output_dir, "train_loss.pkl"), "rb") as f:
-            TrainLoss = pickle.load(f)
-
         all_results = []
 
         for epoch in trange(args.last_epoch, args.num_train_epochs, desc="Epoch"):
-            train_loss = TrainLoss[epoch]
             output_model_file = os.path.join(
                 args.output_dir, "epoch_" + str(epoch) + "_pytorch_model.bin"
             )
@@ -1588,18 +1576,6 @@ def main():
                 True,
                 args.null_score_diff_threshold,
             )
-
-            result = {"train_loss": train_loss}
-
-            with open(os.path.join(args.output_dir, "result.txt"), "a") as writer:
-                writer.write(
-                    "\t\n***** Eval results Epoch %d  %s *****\t\n"
-                    % (epoch, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time())),)
-                )
-                for key in sorted(result.keys()):
-                    logger.info("  %s = %s", key, str(result[key]))
-                    writer.write("%s = %s\t" % (key, str(result[key])))
-                    writer.write("\t\n")
 
 
 if __name__ == "__main__":
