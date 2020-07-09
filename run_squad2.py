@@ -41,7 +41,7 @@ from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt='%m/%d/%Y %H:%M:%S',
-                    level=logging.INFO)
+                    level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
@@ -55,6 +55,7 @@ class SquadExample(object):
                  qas_id,
                  question_text,
                  doc_tokens,
+                 answers,
                  orig_answer_text=None,
                  start_position=None,
                  end_position=None,
@@ -71,6 +72,7 @@ class SquadExample(object):
         self.qas_id = qas_id
         self.question_text = question_text
         self.doc_tokens = doc_tokens
+        self.answers = answers
         self.orig_answer_text = orig_answer_text
         self.start_position = start_position
         self.end_position = end_position
@@ -135,9 +137,7 @@ class InputFeatures(object):
 
 
 def is_whitespace(c):
-    if c == " " or c == "\t" or c == "\r" or c == "\n" or ord(c) == 0x202F:
-        return True
-    return False
+    return c == " " or c == "\t" or c == "\r" or c == "\n" or ord(c) == 0x202F
 
 
 class SimpleNlp(object):
@@ -253,6 +253,8 @@ def read_squad_examples(input_file, input_tag_file, is_training):
 
             for qa in paragraph["qas"]:
                 qas_id = qa["id"]
+                if qas_id not in qas_id_to_tag_idx_map:
+                    continue
                 dqtag = all_dqtag_data[qas_id_to_tag_idx_map[qas_id]]
                 assert dqtag["qas_id"] == qas_id
 
@@ -282,11 +284,9 @@ def read_squad_examples(input_file, input_tag_file, is_training):
                 start_position = None
                 end_position = None
                 orig_answer_text = None
-                is_impossible = False
-                if is_training:
-                    if version == "v2.0":
-                        is_impossible = qa["is_impossible"]
+                is_impossible = qa["is_impossible"] if version == "v2.0" else False
 
+                if is_training:
                     if not is_impossible:
                         answer = qa["answers"][0]
                         orig_answer_text = answer["text"]
@@ -327,7 +327,8 @@ def read_squad_examples(input_file, input_tag_file, is_training):
                     doc_types=new_type_doc,
                     doc_span=new_span_doc,
                     token_doc=dqtag["token_doc"],
-                    token_que=dqtag["token_que"]
+                    token_que=dqtag["token_que"],
+                    answers=qa["answers"]
                 )
                 examples.append(example)
     return examples
@@ -384,6 +385,9 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
             else:
                 sub_que_span.append(head_spans)
 
+        # TODO: wait for tracking
+        if len(sub_que_span) != len(query_tokens):
+            continue
         assert len(sub_que_span) == len(query_tokens)
 
         tok_to_orig_index = []
@@ -524,10 +528,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
             select_doc_len + 2:select_doc_len + select_que_len + 2] = que_span_mask
             record_mask = []
             for i in range(max_seq_length):
-                i_mask = []
-                for j in range(max_seq_length):
-                    if input_span_mask[i, j] == 1:
-                        i_mask.append(j)
+                i_mask = [j for j in range(max_seq_length) if input_span_mask[i, j] == 1]
                 record_mask.append(i_mask)
 
             for idx, token in enumerate(query_tokens):
@@ -602,7 +603,6 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
                     input_span_mask=record_mask
                 ))
             unique_id += 1
-
     return features
 
 
